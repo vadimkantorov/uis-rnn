@@ -14,6 +14,7 @@
 """The UIS-RNN model."""
 
 import functools
+import time
 import numpy as np
 import torch
 from torch import autograd
@@ -168,7 +169,7 @@ class UISRNN:
             self.transition_bias, self.crp_alpha, var_dict['sigma2'],
             var_dict['rnn_init_hidden']))
 
-  def fit_concatenated(self, train_sequence, train_cluster_id, args):
+  def fit_concatenated(self, train_sequence, train_cluster_id, args, val_iteration_interval = 1, on_validation_epoch_start = lambda iter: None):
     """Fit UISRNN model to concatenated sequence and cluster_id.
 
     Args:
@@ -278,7 +279,7 @@ class UISRNN:
       # Sigma2 prior part.
       weight = (((rnn_truth != 0).float() * mean[:-1, :, :] - rnn_truth)
                 ** 2).view(-1, observation_dim)
-      num_non_zero = torch.sum((weight != 0).float(), dim=0).squeeze()
+      num_non_zero = torch.sum((weight != 0).float(), dim=0).squeeze().max() 
       loss2 = loss_func.sigma2_prior_loss(
           num_non_zero, args.sigma_alpha, args.sigma_beta, self.sigma2)
 
@@ -307,11 +308,12 @@ class UISRNN:
                 float(loss1.data),
                 float(loss2.data),
                 float(loss3.data)))
-      train_loss.append(float(loss1.data))  # only save the likelihood part
+      train_loss.append(float(loss1.data)); self.logger.print(2, f'Check {num_iter} {val_iteration_interval}')  # only save the likelihood part
+      if num_iter % val_iteration_interval == 0: self.logger.print(2, f'Validating {num_iter}'); on_validation_epoch_start(num_iter)
     self.logger.print(
         1, 'Done training with {} iterations'.format(args.train_iteration))
 
-  def fit(self, train_sequences, train_cluster_ids, args):
+  def fit(self, train_sequences, train_cluster_ids, args, val_iteration_interval = 1, on_validation_epoch_start = lambda iter : None):
     """Fit UISRNN model.
 
     Args:
@@ -382,7 +384,7 @@ class UISRNN:
          True)
 
     self.fit_concatenated(
-        concatenated_train_sequence, concatenated_train_cluster_id, args)
+        concatenated_train_sequence, concatenated_train_cluster_id, args, val_iteration_interval, on_validation_epoch_start)
 
   def _update_beam_state(self, beam_state, look_ahead_seq, cluster_seq):
     """Update a beam state given a look ahead sequence and known cluster
@@ -519,6 +521,7 @@ class UISRNN:
       raise ValueError('test_sequence does not match the dimension specified '
                        'by args.observation_dim.')
 
+    tic = time.time()
     self.rnn_model.eval()
     test_sequence = np.tile(test_sequence, (args.test_iteration, 1))
     test_sequence = autograd.Variable(
@@ -527,7 +530,7 @@ class UISRNN:
     beam_set = [BeamState()]
     for num_iter in np.arange(0, args.test_iteration * test_sequence_length,
                               args.look_ahead):
-      max_clusters = max([len(beam_state.mean_set) for beam_state in beam_set])
+      max_clusters = max([len(beam_state.mean_set) for beam_state in beam_set])#; self.logger.print(2, f'{num_iter} / {args.test_iteration * test_sequence_length}'); 
       look_ahead_seq = test_sequence[num_iter:  num_iter + args.look_ahead, :]
       look_ahead_seq_length = look_ahead_seq.shape[0]
       score_set = float('inf') * np.ones(
@@ -558,6 +561,7 @@ class UISRNN:
         updated_beam_set.append(updated_beam_state)
       beam_set = updated_beam_set
     predicted_cluster_id = beam_set[0].trace[-test_sequence_length:]
+    self.logger.print(2, f'predict_single {time.time() - tic} sec')
     return predicted_cluster_id
 
   def predict(self, test_sequences, args):

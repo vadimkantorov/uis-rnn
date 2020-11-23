@@ -26,6 +26,7 @@ class Logger:
 
   def __init__(self, verbosity):
     self._verbosity = verbosity
+    self.log = open('log.txt', 'w')
 
   def print(self, level, message):
     """Print a message if level is not higher than verbosity.
@@ -35,7 +36,7 @@ class Logger:
       message: the message to be printed
     """
     if level <= self._verbosity:
-      print(message)
+      print(message); self.log.write(message + '\n'); self.log.flush()
 
 
 def generate_random_string(length=6):
@@ -292,7 +293,7 @@ Performance:
       training_args.batch_size,
       total_accuracy)
   for accuracy in accuracy_array:
-    output_string += '\n    {:.6f}'.format(accuracy)
+    output_string += '    {:.6f} '.format(accuracy)
   output_string += '\n' + '=' * 80 + '\n'
   filename = 'layer_{}_{}_{:.1f}_result.txt'.format(
       model_args.rnn_hidden_size,

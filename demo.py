@@ -55,7 +55,7 @@ def diarization_experiment(model_args, training_args, inference_args):
   # You can also try uisrnn.parallel_predict to speed up with GPU.
   # But that is a beta feature which is not thoroughly tested, so
   # proceed with caution.
-  for (test_sequence, test_cluster_id) in zip(test_sequences, test_cluster_ids):
+  for i, (test_sequence, test_cluster_id) in enumerate(zip(test_sequences, test_cluster_ids)):
     predicted_cluster_id = model.predict(test_sequence, inference_args)
     predicted_cluster_ids.append(predicted_cluster_id)
     accuracy = uisrnn.compute_sequence_match_accuracy(
@@ -66,6 +66,7 @@ def diarization_experiment(model_args, training_args, inference_args):
     print('Predicted labels:')
     print(predicted_cluster_id)
     print('-' * 80)
+    print('Done', i)
 
   output_string = uisrnn.output_result(model_args, training_args, test_record)
 
